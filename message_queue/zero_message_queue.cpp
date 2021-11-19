@@ -32,15 +32,17 @@ bool ZeroMessageQueue::start_listen()
         printf("zmq_bind error with err:[%s]\n", zmq_strerror(errno));
     }
     assert (rc == 0);
-    bool already_start_response_thread = false;
-    std::thread t1, t2, t3, read_thread;
+    return (rc == 0);
 
-    read_thread = std::thread(&ZeroMessageQueue::read_message, *this);
-    t1 = std::thread(&ZeroMessageQueue::send_reply4, *this, "A", "0123654789");
-    t2 = std::thread(&ZeroMessageQueue::send_reply4, *this, "A", "abcdefghij");
-    read_thread.join();
-    t1.join();
-    t2.join();
+    // bool already_start_response_thread = false;
+    // std::thread t1, t2, t3, read_thread;
+
+    // read_thread = std::thread(&ZeroMessageQueue::read_message, *this);
+    // t1 = std::thread(&ZeroMessageQueue::send_reply4, *this, "A", "0123654789");
+    // t2 = std::thread(&ZeroMessageQueue::send_reply4, *this, "A", "abcdefghij");
+    // read_thread.join();
+    // t1.join();
+    // t2.join();
 
     // while (1) {
     //     //printf("wait for new data in router...\n");

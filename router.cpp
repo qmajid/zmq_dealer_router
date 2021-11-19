@@ -8,8 +8,11 @@
 #include <cstring>
 #include <set>
 #include <ctime>
+#include <thread>
 
 #include <zmq.h>
+
+#include "message_queue/zero_message_queue.h"
 
 using namespace std;
 
@@ -137,62 +140,96 @@ inline int send_reply(void* socket, const char* key, const char* data)
 {
     zmq_send(socket, key, strlen(key), ZMQ_SNDMORE);
     //ZMQ_DONTWAIT
-    int rv = zmq_send(socket, data, strlen(data), ZMQ_DONTWAIT);
+    int rv = zmq_send(socket, data, strlen(data), 0);
     printf("send_reply with data[%s] rv:[%d] ...\n", data, rv);
     printf("-----------------------\n");
     return rv;
 }
 
+void send_response_in_thread(ZeroMessageQueue* zmq, const string& key, const string& message)
+{
+    while (true)
+    {
+        int rv = zmq->send_reply(key.c_str(), message.c_str());
+        // zmq_send(socket, key.c_str(), key.length(), ZMQ_SNDMORE);
+        // int rv = zmq_send(socket, message.c_str(), message.length(), 0);
+        // printf("send_reply with data[%s] rv:[%d] ...\n", message.c_str(), rv);
+        // printf("-----------------------\n");
+        usleep(1000*1);
+    }
+}
+
 int main(int argc, char* argv[])
 {
-    int listen_port = 5555;
-    string listen_address = "tcp://*:5555";
+    // int listen_port = 5555;
+    // string listen_address = "tcp://*:5555";
 
-    void *context = zmq_ctx_new ();
-    void *server_socket = zmq_socket (context, ZMQ_ROUTER);
+    // void *context = zmq_ctx_new ();
+    // void *server_socket = zmq_socket (context, ZMQ_ROUTER);
 
-    // Monitor all events on client and server sockets
-    int rc = zmq_socket_monitor (server_socket, "inproc://monitor.rep", ZMQ_EVENT_ALL);
-    assert (rc == 0);
-    pthread_t thread ;
-    rc = pthread_create (&thread, NULL, rep_socket_monitor, context);
-    assert (rc == 0);
+    // // Monitor all events on client and server sockets
+    // int rc = zmq_socket_monitor (server_socket, "inproc://monitor.rep", ZMQ_EVENT_ALL);
+    // assert (rc == 0);
+    // pthread_t thread ;
+    // rc = pthread_create (&thread, NULL, rep_socket_monitor, context);
+    // assert (rc == 0);
 
-    rc = zmq_bind (server_socket, "tcp://*:5555");
-    assert (rc == 0);        
+    // rc = zmq_bind (server_socket, "tcp://*:5555");
+    // assert (rc == 0);        
+    // bool already_start_response_thread = false;
+    
+    ZeroMessageQueue zmq;
+    zmq.start_listen();
 
-    while (1) {
-        char id [10+1] = {0};
-        zmq_recv (server_socket, id, 10, 0);
+    std::thread t1, t2, t3, read_thread;
+    read_thread = std::thread(&ZeroMessageQueue::read_message, zmq);
+    t1 = std::thread(&ZeroMessageQueue::send_reply4, zmq, "A", "0123654789");
+    t2 = std::thread(&ZeroMessageQueue::send_reply4, zmq, "A", "abcdefghij");
+    t3 = std::thread(&ZeroMessageQueue::send_reply4, zmq, "A", "QAZWSXEDC");
+    read_thread.join();
+    t1.join();
+    t2.join();
+    t3.join();
 
-        char data[10+1] = {0};
-        zmq_recv (server_socket, data, 10, 0);
-        printf ("rcv data[%s] with len[%lu] from id[%s]\n", data, strlen(data), id);
+    // while (1) {
+    //     char id [10+1] = {0};
+    //     zmq_recv (server_socket, id, 10, 0);
 
-        string response = string(data);
-        string new_key = "";
-        time_t now = time(0);
-        if (strncmp(id, "A", 1) == 0)
-        {
-            new_key = "B";
-            response += "XXXX-" + string(ctime(&now));
-        }
-        else 
-        {
-            new_key = "A";
-            response += "YYYY-" + string(ctime(&now));
-        }
-        printf("before send reply id[%s] new_key[%s] data[%s]\n", id, new_key.c_str(), response.c_str());
-        if (socket_set.find(12) != socket_set.end())
-        {
-            send_reply(server_socket, new_key.c_str(), response.c_str());
-        }
-        else
-        {
-            printf("not found...\n");
-            //send_reply(server_socket, id, "not found target port.");
-        }        
-    }
+    //     char data[10+1] = {0};
+    //     zmq_recv (server_socket, data, 10, 0);
+    //     printf ("rcv data[%s] with len[%lu] from id[%s]\n", data, strlen(data), id);
 
+    //     if (!already_start_response_thread)
+    //     {
+    //         //std::thread t1(send_response_in_thread, &zmq, "A", "asdfghjkl");
+    //         //std::thread t2(send_response_in_thread, server_socket, "A", "1234567890");
+    //         already_start_response_thread = true;
+    //     }
+    //     usleep(1000*1000);
+
+        // string response = string(data);
+        // string new_key = "";
+        // time_t now = time(0);
+        // if (strncmp(id, "A", 1) == 0)
+        // {
+        //     new_key = "B";
+        //     response += "XXXX-" + string(ctime(&now));
+        // }
+        // else 
+        // {
+        //     new_key = "A";
+        //     response += "YYYY-" + string(ctime(&now));
+        // }
+        // printf("before send reply id[%s] new_key[%s] data[%s]\n", id, new_key.c_str(), response.c_str());
+        // if (socket_set.find(12) != socket_set.end())
+        // {
+        //     send_reply(server_socket, new_key.c_str(), response.c_str());
+        // }
+        // else
+        // {
+        //     printf("not found...\n");
+        //     //send_reply(server_socket, id, "not found target port.");
+        // }        
+    // }
     return EXIT_SUCCESS; 
 }
